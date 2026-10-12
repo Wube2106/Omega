@@ -198,6 +198,30 @@ def _send(text):
     return f"((send {json.dumps(text, ensure_ascii=False)}))"
 
 
+@pytest.mark.parametrize(
+    "reply, expected_text",
+    [
+        ('((send "Hello"))', "Hello"),
+        ('((send ("hello")))', '("hello")'),
+        (
+            '((send "Understood. Let me know how I can assist.")))',
+            "Understood. Let me know how I can assist.",
+        ),
+    ],
+)
+def test_already_wrapped_send_is_normalized_without_corruption(
+    helper, reply, expected_text
+):
+    assert helper.balance_parentheses(reply) == _send(expected_text)
+
+
+def test_multiple_already_wrapped_send_commands_are_split(helper):
+    reply = '((send "Hello"))\n((send "Goodbye"))'
+    assert helper.balance_parentheses(reply) == (
+        '((send "Hello") (send "Goodbye"))'
+    )
+
+
 def test_backslash_before_quote_token_cannot_close_the_string(helper):
     reply = '(send "x\\_quote_) (shell _quote_echo pwned_quote_) (send _quote_")'
     assert helper.balance_parentheses(reply) == _send('x") (shell "echo pwned") (send "')

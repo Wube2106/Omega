@@ -175,9 +175,8 @@ def starts_command_line(line):
     s = line.lstrip()
     if not s:
         return False
-    # allow "(send ...)" as command start too
-    if s.startswith("("):
-        s = s[1:].lstrip()
+    # Allow commands with one or more opening parentheses.
+    s = s.lstrip("(").lstrip()
     if not s:
         return False
     first = s.split(maxsplit=1)[0].rstrip(")")
@@ -236,6 +235,45 @@ def balance_parentheses(s):
             line = "(pin " + line[2:]
         elif line.startswith("-"):
             line = "pin " + line[1:]
+
+        # Normalize already-wrapped commands such as ((send "Hello")).
+        # Only do this when the command is recognized.
+        if line.startswith("("):
+            candidate = line.lstrip("(").lstrip()
+            candidate_parts = candidate.split(maxsplit=1)
+            if (
+                candidate_parts
+                and candidate_parts[0].rstrip(")") in LLM_COMMANDS
+            ):
+                # Count parentheses outside quoted strings.
+                # Preserve balanced parentheses in command arguments.
+                depth = 0
+                in_string = False
+                escaped = False
+
+                for ch in candidate:
+                    if in_string:
+                        if ch == '"' and not escaped:
+                            in_string = False
+                        if ch == "\\" and not escaped:
+                            escaped = True
+                        else:
+                            escaped = False
+                    else:
+                        if ch == '"':
+                            in_string = True
+                        elif ch == "(":
+                            depth += 1
+                        elif ch == ")":
+                            depth -= 1
+
+                # Remove only closing parentheses not matched by an opening one.
+                extra_closing = max(0, -depth)
+                if extra_closing:
+                    candidate = candidate[:-extra_closing]
+
+                line = candidate.strip()
+
         # remove one outer (...) if present
         if line.startswith("(") and line.endswith(")"):
             line = line[1:-1].strip()
